@@ -98,7 +98,7 @@
 </div>
 
 <script>
-    const apiKey = ""; 
+    const apiKey = ""; // Trage hier deinen Google AI Key ein
     const taskContainer = document.getElementById('task-container');
     const addTaskBtn = document.getElementById('add-task-btn');
 
@@ -174,27 +174,44 @@
         }
     }
 
+    // --- NEUE VERBESSERTE COPY FUNKTION ---
     function copyToNotion(id) {
         const taskEl = document.getElementById(`task-${id}`);
         const title = taskEl.querySelector('.task-title').innerText;
-        const subtasks = Array.from(taskEl.querySelectorAll('.subtask-item')).map(s => s.innerText.replace('• ', ''));
         
-        // Formatierung für Notion: Titel gefolgt von Checkboxen ([] )
-        let text = `[] ${title}\n`;
+        const timeInfo = taskEl.querySelector('.text-gray-500').innerText.split('|')[1].trim();
+        const subtasks = Array.from(taskEl.querySelectorAll('.subtask-item'))
+            .map(s => s.innerText.replace('• ', '').trim());
+        
+        let text = `${title} (${timeInfo})\n`;
         subtasks.forEach(st => {
-            text += `  [] ${st}\n`;
+            text += `\t${st}\n`;
         });
 
         const el = document.createElement('textarea');
         el.value = text;
+        el.setAttribute('readonly', '');
+        el.style.position = 'absolute';
+        el.style.left = '-9999px';
         document.body.appendChild(el);
         el.select();
-        document.execCommand('copy');
+        
+        try {
+            document.execCommand('copy');
+            const btn = taskEl.querySelector('button');
+            const originalText = btn.innerText;
+            btn.innerText = '✅ Kopiert!';
+            btn.style.background = '#dcfce7'; // Leichtes Grün
+            
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.style.background = '#f3f4f6';
+            }, 2000);
+        } catch (err) {
+            console.error('Kopieren fehlgeschlagen', err);
+        }
+        
         document.body.removeChild(el);
-
-        const btn = taskEl.querySelector('button');
-        btn.innerText = '✅ Copied!';
-        setTimeout(() => btn.innerText = '📋 Copy for Notion', 2000);
     }
 </script>
 
