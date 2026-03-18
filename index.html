@@ -98,7 +98,8 @@
 </div>
 
 <script>
-    const apiKey = ""; // Trage hier deinen Google AI Key ein
+    // WICHTIG: Hier muss ein gültiger Key von https://aistudio.google.com/ eingefügt werden
+    const apiKey = ""; 
     const taskContainer = document.getElementById('task-container');
     const addTaskBtn = document.getElementById('add-task-btn');
 
@@ -125,13 +126,20 @@
                              (importance === 'low' && urgency === 'high') ? '🤝 Delegate' : '🗑️ Don\'t Do';
 
         const html = `
-            <div id="task-${id}" class="notion-card p-4 border-l-4 ${importance === 'high' ? 'border-blue-500' : 'border-gray-300'}" data-task-name="${name}">
+            <div id="task-${id}" class="notion-card p-4 border-l-4 ${importance === 'high' ? 'border-blue-500' : 'border-gray-300'}" 
+                 data-task-name="${name}" 
+                 data-importance="${importance}" 
+                 data-urgency="${urgency}"
+                 data-priority-label="${priorityLabel}">
                 <div class="flex justify-between items-start">
                     <div>
                         <h3 class="font-bold text-lg task-title">${name}</h3>
-                        <div class="text-xs text-gray-500 mt-1">Status: ${priorityLabel} | Plan: ${time} Min</div>
+                        <div class="text-xs text-gray-500 mt-1 task-meta">Status: ${priorityLabel} | Plan: ${time} Min</div>
                     </div>
-                    <button onclick="copyToNotion(${id})" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">📋 Copy for Notion</button>
+                    <div class="flex gap-2">
+                        <button onclick="copyToNotion(${id})" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">📋 Copy for Page</button>
+                        <button onclick="document.getElementById('task-${id}').remove()" class="text-xs hover:text-red-500 px-1">🗑️</button>
+                    </div>
                 </div>
                 <div id="subtasks-${id}" class="mt-4 pl-4 border-l border-gray-200 space-y-1">
                     <div class="loader-container text-xs text-gray-400 italic">
@@ -145,6 +153,14 @@
 
     async function generateSubtasks(taskId, taskName) {
         const subtaskContainer = document.getElementById(`subtasks-${taskId}`);
+        
+        // Falls kein API Key vorhanden ist, nutzen wir direkt die Fallback-Häppchen
+        if (!apiKey || apiKey === "") {
+            console.warn("Kein API Key gefunden. Nutze Standard-Häppchen.");
+            renderSubtasks(taskId, ["Aufgabe strukturieren", "Erste Schritte umsetzen", "Ergebnis prüfen"]);
+            return;
+        }
+
         const systemPrompt = "Zerlege die Aufgabe in max. 4 Häppchen. Antworte NUR mit einer JSON-Liste von Strings.";
 
         try {
@@ -158,34 +174,49 @@
                 })
             });
 
+            if (!response.ok) throw new Error('API Anfrage fehlgeschlagen');
+
             const result = await response.json();
             const subtasks = JSON.parse(result.candidates[0].content.parts[0].text);
-            
-            subtaskContainer.innerHTML = '';
-            subtasks.forEach(st => {
-                subtaskContainer.innerHTML += `
-                    <div class="flex items-center gap-2 text-sm subtask-item">
-                        <span>•</span> <span>${st}</span>
-                    </div>
-                `;
-            });
+            renderSubtasks(taskId, subtasks);
         } catch (error) {
-            subtaskContainer.innerHTML = '<span class="text-xs text-gray-400 italic">Keine Häppchen verfügbar.</span>';
+            console.error("KI Fehler:", error);
+            renderSubtasks(taskId, ["Vorbereitung", "Hauptteil bearbeiten", "Abschluss & Review"]);
         }
     }
 
-    // --- NEUE VERBESSERTE COPY FUNKTION ---
+    function renderSubtasks(taskId, subtasks) {
+        const subtaskContainer = document.getElementById(`subtasks-${taskId}`);
+        subtaskContainer.innerHTML = '';
+        subtasks.forEach(st => {
+            subtaskContainer.innerHTML += `
+                <div class="flex items-center gap-2 text-sm subtask-item">
+                    <span>•</span> <span>${st}</span>
+                </div>
+            `;
+        });
+    }
+
     function copyToNotion(id) {
         const taskEl = document.getElementById(`task-${id}`);
         const title = taskEl.querySelector('.task-title').innerText;
+        const meta = taskEl.querySelector('.task-meta').innerText;
+        const priorityLabel = taskEl.dataset.priorityLabel;
+        const importance = taskEl.dataset.importance === 'high' ? 'Wichtig' : 'Routine';
+        const urgency = taskEl.dataset.urgency === 'high' ? 'Dringend' : 'Nicht dringend';
         
-        const timeInfo = taskEl.querySelector('.text-gray-500').innerText.split('|')[1].trim();
         const subtasks = Array.from(taskEl.querySelectorAll('.subtask-item'))
             .map(s => s.innerText.replace('• ', '').trim());
         
-        let text = `${title} (${timeInfo})\n`;
+        let text = `${title}\n`; 
+        text += `\n--- Details ---\n`;
+        text += `• Priorität: ${priorityLabel}\n`;
+        text += `• Zeitaufwand: ${meta.split('|')[1].trim()}\n`;
+        text += `• Relevanz: ${importance} & ${urgency}\n`;
+        text += `\n--- Unteraufgaben ---\n`;
+        
         subtasks.forEach(st => {
-            text += `\t${st}\n`;
+            text += `\t[] ${st}\n`; 
         });
 
         const el = document.createElement('textarea');
@@ -198,10 +229,10 @@
         
         try {
             document.execCommand('copy');
-            const btn = taskEl.querySelector('button');
+            const btn = taskEl.querySelectorAll('button')[0];
             const originalText = btn.innerText;
             btn.innerText = '✅ Kopiert!';
-            btn.style.background = '#dcfce7'; // Leichtes Grün
+            btn.style.background = '#dcfce7'; 
             
             setTimeout(() => {
                 btn.innerText = originalText;
